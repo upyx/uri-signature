@@ -1,0 +1,59 @@
+{
+    "name": "upyx/uri-signature",
+    "description": "Sing and verify URIs.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "sign",
+        "signature",
+        "uri",
+        "url"
+    ],
+    "authors": [
+        {
+            "name": "Sergey Rabochiy",
+            "email": "upyx.00@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^7.4 || ^8"
+    },
+    "require-dev": {
+        "ramsey/devtools": "^1.7"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "Upyx\\UriSignature\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Upyx\\Test\\UriSignature\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true,
+            "phpstan/extension-installer": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "ergebnis/composer-normalize": true,
+            "captainhook/plugin-composer": true,
+            "ramsey/devtools": true,
+            "ramsey/composer-repl": true
+        },
+        "sort-packages": true
+    },
+    "extra": {
+        "captainhook": {
+            "force-install": true
+        },
+        "ramsey/conventional-commits": {
+            "configFile": "conventional-commits.json"
+        },
+        "ramsey/devtools": {
+            "command-prefix": "dev"
+        }
+    }
+}
