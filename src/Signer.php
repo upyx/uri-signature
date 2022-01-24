@@ -25,30 +25,79 @@ namespace Upyx\UriSignature;
 use Psr\Http\Message\UriInterface;
 use RuntimeException;
 
-use function base64_encode;
 use function explode;
+use function hash;
+use function hash_algos;
+use function hash_hmac;
+use function hash_hmac_algos;
 use function http_build_query;
+use function in_array;
 use function ksort;
 use function parse_str;
 use function rawurldecode;
-use function rtrim;
-use function sha1;
+use function sprintf;
 use function str_ends_with;
+use function strpos;
 use function strstr;
-use function strtr;
+use function strtolower;
+use function substr;
 
 final class Signer
 {
     private string $signParam;
     private string $secretKey;
+    private string $algorithm;
+    private bool $hmac;
 
-    public function __construct(string $signParam, string $secretKey)
+    public function __construct(string $signParam, string $secretKey, string $algorithm = 'sha1')
     {
+        self::checkAlgorithm($algorithm, $isHmac, $isSupported);
+        if (!$isSupported) {
+            throw new RuntimeException(
+                $isHmac
+                    ? sprintf('The "%s" HMAC algorithm is not supported.', $algorithm)
+                    : sprintf('The "%s" hash algorithm is not supported.', $algorithm),
+            );
+        }
+
         $this->signParam = $signParam;
         $this->secretKey = $secretKey;
+        $this->algorithm = $algorithm;
+        $this->hmac = (bool) $isHmac;
     }
 
+    public static function isAlgorithmSupported(string $algorithm): bool
+    {
+        self::checkAlgorithm($algorithm, $isHmac, $isSupported);
+
+        return (bool) $isSupported;
+    }
+
+    private static function checkAlgorithm(string &$algorithm, ?bool &$isHmac, ?bool &$isSupported): void
+    {
+        $algorithm = strtolower($algorithm);
+
+        if (strpos($algorithm, 'hmac-') === 0) {
+            $algorithm = substr($algorithm, 5);
+            $supported = hash_hmac_algos();
+            $isHmac = true;
+        } else {
+            $supported = hash_algos();
+            $isHmac = false;
+        }
+
+        $isSupported = in_array($algorithm, $supported, true);
+    }
+
+    /**
+     * @deprecated use signUriParams instead
+     */
     public function sign(UriInterface $uri): UriInterface
+    {
+        return $this->signUriParams($uri);
+    }
+
+    public function signUriParams(UriInterface $uri): UriInterface
     {
         parse_str($uri->getQuery(), $params);
 
@@ -65,7 +114,15 @@ final class Signer
         return $uri->withQuery($uri->getQuery() . '&' . $this->signParam . '=' . $this->makeSignature($params));
     }
 
+    /**
+     * @deprecated use verifyUriParams instead
+     */
     public function verify(UriInterface $uri): bool
+    {
+        return $this->verifyUriParams($uri);
+    }
+
+    public function verifyUriParams(UriInterface $uri): bool
     {
         parse_str($uri->getQuery(), $params);
 
@@ -87,17 +144,23 @@ final class Signer
      */
     private function makeSignature(array $params): string
     {
-        $params[$this->signParam] = $this->secretKey;
+        if ($this->hmac) {
+            unset($params[$this->signParam]);
+        } else {
+            $params[$this->signParam] = $this->secretKey;
+        }
 
         ksort($params);
 
-        $result = http_build_query($params);
-        $result = sha1($result, true);
-        $result = base64_encode($result);
-        $result = strtr($result, '+/', '-_');
-        $result = rtrim($result, '=');
+        $query = http_build_query($params);
 
-        return $result;
+        if ($this->hmac) {
+            $signature = hash_hmac($this->algorithm, $query, $this->secretKey, true);
+        } else {
+            $signature = hash($this->algorithm, $query, true);
+        }
+
+        return UrlSafeBase64::encode($signature);
     }
 
     private static function hasDoubledParameters(string $query): bool

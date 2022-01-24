@@ -17,7 +17,8 @@
 
 ## About
 
-A simple tool to sing and verify URIs to protect them from fraud.
+A simple tool to sing and verify URIs' query parameters to protect them from fraud.
+It supports different hash algorithms including HMAC.
 
 It depends on PRS-7 HTTP message implementation. It has been tested with
 [Guzzle](https://github.com/guzzle/psr7) and [Nyholm](https://github.com/nyholm/psr7),
@@ -27,37 +28,105 @@ but you can try anyone.
 
 Install this package as a dependency using [Composer](https://getcomposer.org).
 
-``` bash
+```bash
 composer require upyx/uri-signature
 ```
 
 If you got an error `Could not find package psr/http-message-implementation`, it means
 you miss a PSR-7 implementation. Try
 
-``` bash
+```bash
 composer require nyholm/psr7
 ```
 
 or
 
-``` bash
+```bash
 composer require guzzlehttp/psr7
 ```
 
 ## Usage
 
-``` php
+To sign query parameters
+
+```php
 use GuzzleHttp\Psr7\Uri;
 use Upyx\UriSignature\Signer;
-$signer = new Signer('sig', 's0me$ecret!');
-$uri = new Uri('https://example.com/?sensitive=value');
-$signed = $signer->sign($uri); // https://example.com/?sensitive=value&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY
-$verified = $signer->verify($signed); // true
+$signer = new Signer('sig', 's0me$ecret!', 'sha1');
 
-// use the same parameter name and the secret
-$signer = new Signer('sig', 's0me$ecret!');
-$hack = new Uri('https://example.com/?sensitive=changed&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY');
-$failed = $signer->verify($signed); // false
+$uri = new Uri('https://example.com/?sensitive=value');
+$signed = $signer->signUriParams($uri);
+echo $signed; // https://example.com/?sensitive=value&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY
+```
+
+To check them
+
+```php
+use GuzzleHttp\Psr7\Uri;
+use Upyx\UriSignature\Signer;
+$signer = new Signer('sig', 's0me$ecret!', 'sha1');
+
+$signed = new Uri('https://example.com/?sensitive=value&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY');
+$verified = $signer->verifyUriParams($signed); // true
+
+$hacked = new Uri('https://example.com/?sensitive=changed&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY');
+$failed = $signer->verifyUriParams($hacked); // false
+```
+
+It signs query parameters only!
+
+```php
+use GuzzleHttp\Psr7\Uri;
+use Upyx\UriSignature\Signer;
+$signer = new Signer('sig', 's0me$ecret!', 'sha1');
+
+$signed1 = new Uri('//some.example.com/?sensitive=value&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY');
+$signed2 = new Uri('//other.example.com/?sensitive=value&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY');
+$signed3 = new Uri('/?sensitive=value&sig=YQ_1AXL5Cdspng1W7SETkdvsLoY');
+
+$verified = $signer->verifyUriParams($signed1); // true
+$verifiedToo = $signer->verifyUriParams($signed2); // true
+$verifiedAgain = $signer->verifyUriParams($signed3); // true
+```
+
+Parameters are being sorted so that the order is not important
+
+```php
+use GuzzleHttp\Psr7\Uri;
+use Upyx\UriSignature\Signer;
+$signer = new Signer('sig', 's0me$ecret!', 'sha1');
+
+$signed1 = new Uri('/?param1=value1&param2=vA%20e.&sig=m3EaBLndIFulvWGJqUuxGepv000');
+$signed2 = new Uri('/?param2=vA%20e.&param1=value1&sig=m3EaBLndIFulvWGJqUuxGepv000');
+
+$verified = $signer->verifyUriParams($signed1); // true
+$verifiedToo = $signer->verifyUriParams($signed2); // true
+```
+
+However, ordering of arrays is
+
+```php
+use GuzzleHttp\Psr7\Uri;
+use Upyx\UriSignature\Signer;
+$signer = new Signer('sig', 's0me$ecret!', 'sha1');
+
+$signed = new Uri('https://example.com/?param[]=1&param[]=2&sig=TZEYycd_uldtq0B3nHXlETRxT2Y');
+$hacked = new Uri('https://example.com/?param[]=2&param[]=1&sig=TZEYycd_uldtq0B3nHXlETRxT2Y');
+
+$verified = $signer->verifyUriParams($signed1); // true
+$failed = $signer->verifyUriParams($hacked); // false
+```
+
+To check the supported algorithms, the functions
+[hash_algos()](https://www.php.net/manual/en/function.hash-algos) and
+[hash_hmac_algos()](https://www.php.net/manual/en/function.hash-hmac-algos)
+can be used. To use HMAC add the `hmac-` prefix. For example:
+
+```php
+new Signer('sig', 's0me$ecret!', 'sha1');
+new Signer('sig', 's0me$ecret!', 'md5');
+new Signer('sig', 's0me$ecret!', 'hmac-sha1');
+new Signer('sig', 's0me$ecret!', 'hmac-md5');
 ```
 
 ## Contributing
